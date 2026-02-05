@@ -1,0 +1,80 @@
+{
+  "kind": "collectionType",
+  "collectionName": "activity_sessions",
+  "info": {
+    "singularName": "activity-session",
+    "pluralName": "activity-sessions",
+    "displayName": "Activity Session"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "sessionId": {
+      "type": "uid"
+    },
+    "activity": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::activity.activity"
+    },
+    "activityStatus": {
+      "type": "enumeration",
+      "default": "started",
+      "enum": [
+        "started",
+        "completed",
+        "interrupted",
+        "abandoned"
+      ]
+    },
+    "startTime": {
+      "type": "datetime"
+    },
+    "endTime": {
+      "type": "datetime"
+    },
+    "durationSeconds": {
+      "type": "integer"
+    },
+    "estimatedScore": {
+      "type": "integer"
+    },
+    "actualScore": {
+      "type": "integer"
+    },
+    "promptLevel": {
+      "type": "enumeration",
+      "enum": [
+        "independent",
+        "verbal",
+        "gestural",
+        "partial-physical",
+        "full-physical"
+      ]
+    },
+    "rawTelemetry": {
+      "type": "json"
+    },
+    "avgLatency": {
+      "type": "float"
+    },
+    "successRate": {
+      "type": "float"
+    },
+    "teacherNotes": {
+      "type": "text"
+    },
+    "therapist": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "student": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  }
+}

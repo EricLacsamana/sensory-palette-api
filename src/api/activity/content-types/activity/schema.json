@@ -1,0 +1,65 @@
+{
+  "kind": "collectionType",
+  "collectionName": "activities",
+  "info": {
+    "singularName": "activity",
+    "pluralName": "activities",
+    "displayName": "Activity"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "activityId": {
+      "type": "uid",
+      "targetField": "name"
+    },
+    "name": {
+      "type": "string",
+      "required": false
+    },
+    "description": {
+      "type": "text"
+    },
+    "masteryThreshold": {
+      "type": "integer",
+      "default": 80
+    },
+    "padConfiguration": {
+      "type": "json"
+    },
+    "categories": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::category.category"
+    },
+    "controllers": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::device.device"
+    },
+    "banner": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "activityStatus": {
+      "type": "enumeration",
+      "enum": [
+        "active",
+        "disabled",
+        "coming-soon"
+      ]
+    },
+    "duration": {
+      "type": "integer",
+      "min": 0
+    }
+  }
+}
