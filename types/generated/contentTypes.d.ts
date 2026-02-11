@@ -472,8 +472,8 @@ export interface ApiActivitySessionActivitySession
   };
   attributes: {
     activity: Schema.Attribute.Relation<'manyToOne', 'api::activity.activity'>;
-    activityStatus: Schema.Attribute.Enumeration<
-      ['started', 'completed', 'interrupted', 'abandoned']
+    activitySessionStatus: Schema.Attribute.Enumeration<
+      ['started', 'live', 'completed', 'interrupted', 'abandoned', 'reschedule']
     > &
       Schema.Attribute.DefaultTo<'started'>;
     actualScore: Schema.Attribute.Integer;
@@ -481,8 +481,8 @@ export interface ApiActivitySessionActivitySession
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    durationSeconds: Schema.Attribute.Integer;
-    endTime: Schema.Attribute.DateTime;
+    durationMinutes: Schema.Attribute.Integer;
+    endAt: Schema.Attribute.DateTime;
     estimatedScore: Schema.Attribute.Integer;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -496,7 +496,7 @@ export interface ApiActivitySessionActivitySession
     publishedAt: Schema.Attribute.DateTime;
     rawTelemetry: Schema.Attribute.JSON;
     sessionId: Schema.Attribute.UID;
-    startTime: Schema.Attribute.DateTime;
+    startAt: Schema.Attribute.DateTime;
     student: Schema.Attribute.Relation<
       'oneToOne',
       'plugin::users-permissions.user'
@@ -538,7 +538,7 @@ export interface ApiActivityActivity extends Struct.CollectionTypeSchema {
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     description: Schema.Attribute.Text;
-    duration: Schema.Attribute.Integer &
+    durationMinutes: Schema.Attribute.Integer &
       Schema.Attribute.SetMinMax<
         {
           min: 0;
@@ -684,42 +684,6 @@ export interface ApiGlobalGlobal extends Struct.SingleTypeSchema {
     publishedAt: Schema.Attribute.DateTime;
     siteDescription: Schema.Attribute.Text & Schema.Attribute.Required;
     siteName: Schema.Attribute.String & Schema.Attribute.Required;
-    updatedAt: Schema.Attribute.DateTime;
-    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-  };
-}
-
-export interface ApiStudentStudent extends Struct.CollectionTypeSchema {
-  collectionName: 'students';
-  info: {
-    displayName: 'Student';
-    pluralName: 'students';
-    singularName: 'student';
-  };
-  options: {
-    draftAndPublish: true;
-  };
-  attributes: {
-    address: Schema.Attribute.String;
-    createdAt: Schema.Attribute.DateTime;
-    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-    dateOfBirth: Schema.Attribute.Date;
-    firstName: Schema.Attribute.String;
-    lastName: Schema.Attribute.String;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
-    localizations: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::student.student'
-    > &
-      Schema.Attribute.Private;
-    middleName: Schema.Attribute.String;
-    profilePicture: Schema.Attribute.Media<
-      'images' | 'files' | 'videos' | 'audios'
-    >;
-    publishedAt: Schema.Attribute.DateTime;
-    sex: Schema.Attribute.Enumeration<['male', 'female']>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1250,7 +1214,6 @@ declare module '@strapi/strapi' {
       'api::category.category': ApiCategoryCategory;
       'api::device.device': ApiDeviceDevice;
       'api::global.global': ApiGlobalGlobal;
-      'api::student.student': ApiStudentStudent;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

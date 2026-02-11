@@ -57,7 +57,7 @@
         "coming-soon"
       ]
     },
-    "duration": {
+    "durationMinutes": {
       "type": "integer",
       "min": 0
     }

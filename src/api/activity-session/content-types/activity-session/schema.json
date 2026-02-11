@@ -19,23 +19,25 @@
       "relation": "manyToOne",
       "target": "api::activity.activity"
     },
-    "activityStatus": {
+    "activitySessionStatus": {
       "type": "enumeration",
       "default": "started",
       "enum": [
         "started",
+        "live",
         "completed",
         "interrupted",
-        "abandoned"
+        "abandoned",
+        "reschedule"
       ]
     },
-    "startTime": {
+    "startAt": {
       "type": "datetime"
     },
-    "endTime": {
+    "endAt": {
       "type": "datetime"
     },
-    "durationSeconds": {
+    "durationMinutes": {
       "type": "integer"
     },
     "estimatedScore": {
