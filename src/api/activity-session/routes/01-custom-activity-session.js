@@ -3,11 +3,12 @@
 module.exports = {
   routes: [
     {
-      method: 'GET',
-      path: '/activity-sessions/unavailable-slots',
-      handler: 'activity-session.getUnavailableSlots',
+      method: 'POST',
+      path: '/activity-sessions/:id/recommend', 
+      handler: 'api::activity-session.activity-session.triggerAiRecommendation',
       config: {
-        auth: false,
+        policies: [],
+        middlewares: [],
       },
     },
   ],

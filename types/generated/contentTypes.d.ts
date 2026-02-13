@@ -473,10 +473,19 @@ export interface ApiActivitySessionActivitySession
   attributes: {
     activity: Schema.Attribute.Relation<'manyToOne', 'api::activity.activity'>;
     activitySessionStatus: Schema.Attribute.Enumeration<
-      ['started', 'live', 'completed', 'interrupted', 'abandoned', 'reschedule']
+      [
+        'pending',
+        'in_progress',
+        'completed',
+        'cancelled',
+        'interrupted',
+        'abandoned',
+        'reschedule_requested',
+      ]
     > &
-      Schema.Attribute.DefaultTo<'started'>;
+      Schema.Attribute.DefaultTo<'pending'>;
     actualScore: Schema.Attribute.Integer;
+    aiRecommendation: Schema.Attribute.String;
     avgLatency: Schema.Attribute.Float;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -491,10 +500,11 @@ export interface ApiActivitySessionActivitySession
     > &
       Schema.Attribute.Private;
     promptLevel: Schema.Attribute.Enumeration<
-      ['independent', 'verbal', 'gestural', 'partial-physical', 'full-physical']
+      ['independent', 'verbal', 'gestural', 'partial_physical', 'full_physical']
     >;
     publishedAt: Schema.Attribute.DateTime;
     rawTelemetry: Schema.Attribute.JSON;
+    recommendationActivity: Schema.Attribute.String;
     sessionId: Schema.Attribute.UID;
     startAt: Schema.Attribute.DateTime;
     student: Schema.Attribute.Relation<
@@ -526,7 +536,7 @@ export interface ApiActivityActivity extends Struct.CollectionTypeSchema {
   attributes: {
     activityId: Schema.Attribute.UID<'name'>;
     activityStatus: Schema.Attribute.Enumeration<
-      ['active', 'disabled', 'coming-soon']
+      ['active', 'disabled', 'coming_soon']
     >;
     banner: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
     categories: Schema.Attribute.Relation<
@@ -1147,49 +1157,63 @@ export interface PluginUsersPermissionsUser
     draftAndPublish: false;
   };
   attributes: {
-    blocked: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
-    confirmationToken: Schema.Attribute.String & Schema.Attribute.Private;
-    confirmed: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    blocked: Schema.Attribute.Boolean &
+      Schema.Attribute.Configurable &
+      Schema.Attribute.DefaultTo<false>;
+    confirmationToken: Schema.Attribute.String &
+      Schema.Attribute.Private &
+      Schema.Attribute.Configurable;
+    confirmed: Schema.Attribute.Boolean &
+      Schema.Attribute.Configurable &
+      Schema.Attribute.DefaultTo<false>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    dateOfBirth: Schema.Attribute.Date;
+    dateOfBirth: Schema.Attribute.Date & Schema.Attribute.Configurable;
     email: Schema.Attribute.Email &
       Schema.Attribute.Required &
+      Schema.Attribute.Configurable &
       Schema.Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
-    firstName: Schema.Attribute.String;
-    gender: Schema.Attribute.Enumeration<['male', 'female']>;
-    lastName: Schema.Attribute.String;
+    firstName: Schema.Attribute.String & Schema.Attribute.Configurable;
+    gender: Schema.Attribute.Enumeration<['male', 'female']> &
+      Schema.Attribute.Configurable;
+    lastName: Schema.Attribute.String & Schema.Attribute.Configurable;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
       'plugin::users-permissions.user'
     > &
       Schema.Attribute.Private;
-    middleName: Schema.Attribute.String;
+    middleName: Schema.Attribute.String & Schema.Attribute.Configurable;
     password: Schema.Attribute.Password &
       Schema.Attribute.Private &
+      Schema.Attribute.Configurable &
       Schema.Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
     profilePicture: Schema.Attribute.Media<
       'images' | 'files' | 'videos' | 'audios'
-    >;
-    provider: Schema.Attribute.String;
+    > &
+      Schema.Attribute.Configurable;
+    provider: Schema.Attribute.String & Schema.Attribute.Configurable;
     publishedAt: Schema.Attribute.DateTime;
-    resetPasswordToken: Schema.Attribute.String & Schema.Attribute.Private;
+    resetPasswordToken: Schema.Attribute.String &
+      Schema.Attribute.Private &
+      Schema.Attribute.Configurable;
     role: Schema.Attribute.Relation<
       'manyToOne',
       'plugin::users-permissions.role'
-    >;
+    > &
+      Schema.Attribute.Configurable;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     username: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique &
+      Schema.Attribute.Configurable &
       Schema.Attribute.SetMinMaxLength<{
         minLength: 3;
       }>;

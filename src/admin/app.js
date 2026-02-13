@@ -2,6 +2,8 @@
 export default {
   
   config: {
+    tutorials: false,
+    notifications: { releases: false },
     translations: {
       en: {
         "app.components.HomePage.welcome.title": "Welcome to Your Sensory Pallete Dashboard",

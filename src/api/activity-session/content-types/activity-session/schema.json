@@ -21,14 +21,15 @@
     },
     "activitySessionStatus": {
       "type": "enumeration",
-      "default": "started",
+      "default": "pending",
       "enum": [
-        "started",
-        "live",
+        "pending",
+        "in_progress",
         "completed",
+        "cancelled",
         "interrupted",
         "abandoned",
-        "reschedule"
+        "reschedule_requested"
       ]
     },
     "startAt": {
@@ -52,8 +53,8 @@
         "independent",
         "verbal",
         "gestural",
-        "partial-physical",
-        "full-physical"
+        "partial_physical",
+        "full_physical"
       ]
     },
     "rawTelemetry": {
@@ -77,6 +78,12 @@
       "type": "relation",
       "relation": "oneToOne",
       "target": "plugin::users-permissions.user"
+    },
+    "aiRecommendation": {
+      "type": "string"
+    },
+    "recommendationActivity": {
+      "type": "string"
     }
   }
 }

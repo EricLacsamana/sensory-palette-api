@@ -54,7 +54,7 @@
       "enum": [
         "active",
         "disabled",
-        "coming-soon"
+        "coming_soon"
       ]
     },
     "durationMinutes": {
