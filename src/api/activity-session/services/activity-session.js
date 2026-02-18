@@ -31,8 +31,9 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
         Role: Clinical Therapy Assistant
         Analyze session for: ${session.student?.firstName}
         Current Activity: ${session.activity?.name}
-        Score: ${session.actualScore}% (Threshold: ${session.activity?.masteryThreshold}%)
-        Latency: ${session.avgLatency}ms
+        Score: ${session.score}% (Threshold: ${session.activity?.masteryThreshold}%)
+        Duration: (Start: ${session.actualStartAt}) (End: ${session.actualEndAt})
+        Telemetry: ${session.rawTelemetry}ms
         Notes: ${session.teacherNotes || 'None'}
 
         Available Activities: ${JSON.stringify(activeActivities.map(a => ({ id: a.documentId, name: a.name })))}
@@ -56,7 +57,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
         documentId,
         data: {
           aiRecommendation: aiData.insight.substring(0, 500), // Truncate to 500 for 'Text' fields
-          recommendationActivity: aiData.nextActivityId,
+          aiRecommendationId: aiData.nextActivityId,
         },
         status: 'published'
       });

@@ -16,67 +16,52 @@
     "username": {
       "type": "string",
       "minLength": 3,
-      "unique": true,
-      "configurable": true,
-      "required": true
+      "required": true,
+      "unique": true
     },
     "email": {
       "type": "email",
-      "minLength": 6,
-      "configurable": true,
-      "required": true
+      "required": true,
+      "minLength": 6
     },
     "provider": {
-      "type": "string",
-      "configurable": true
+      "type": "string"
     },
     "password": {
       "type": "password",
-      "minLength": 6,
-      "configurable": true,
       "private": true,
-      "searchable": false
+      "minLength": 6
     },
     "resetPasswordToken": {
       "type": "string",
-      "configurable": true,
-      "private": true,
-      "searchable": false
+      "private": true
     },
     "confirmationToken": {
       "type": "string",
-      "configurable": true,
-      "private": true,
-      "searchable": false
+      "private": true
     },
     "confirmed": {
       "type": "boolean",
-      "default": false,
-      "configurable": true
+      "default": false
     },
     "blocked": {
       "type": "boolean",
-      "default": false,
-      "configurable": true
+      "default": false
     },
     "role": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::users-permissions.role",
-      "inversedBy": "users",
-      "configurable": true
+      "inversedBy": "users"
     },
     "firstName": {
-      "type": "string",
-      "configurable": true
+      "type": "string"
     },
     "middleName": {
-      "type": "string",
-      "configurable": true
+      "type": "string"
     },
     "lastName": {
-      "type": "string",
-      "configurable": true
+      "type": "string"
     },
     "profilePicture": {
       "type": "media",
@@ -86,20 +71,29 @@
         "files",
         "videos",
         "audios"
-      ],
-      "configurable": true
+      ]
     },
     "dateOfBirth": {
-      "type": "date",
-      "configurable": true
+      "type": "date"
     },
     "gender": {
       "type": "enumeration",
       "enum": [
         "male",
         "female"
-      ],
-      "configurable": true
+      ]
+    },
+    "therapist": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "students"
+    },
+    "students": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::users-permissions.user",
+      "mappedBy": "therapist"
     }
   }
 }

@@ -17,7 +17,6 @@ export default async (policyContext, config, { strapi }) => {
 
   const roleType = userWithRole?.role?.type;
 
-
   if (roleType === 'therapist') {
 
     const currentFilters = ctx.query.filters || {};
@@ -26,13 +25,13 @@ export default async (policyContext, config, { strapi }) => {
       ...ctx.query,
       filters: {
         ...currentFilters,
-        role: {
-          type: { $eq: 'student' }
-        }
+        $and: [
+          { role: { type: { $eq: 'student' } } },
+          { therapist: { id: { $eq: user.id } } }
+        ]
       }
     };
     
-   
     ctx.request.query = ctx.query;
 
     console.log("Policy Log: Applied Student filter to Therapist request.");

@@ -38,33 +38,8 @@
     "endAt": {
       "type": "datetime"
     },
-    "durationMinutes": {
-      "type": "integer"
-    },
-    "estimatedScore": {
-      "type": "integer"
-    },
-    "actualScore": {
-      "type": "integer"
-    },
-    "promptLevel": {
-      "type": "enumeration",
-      "enum": [
-        "independent",
-        "verbal",
-        "gestural",
-        "partial_physical",
-        "full_physical"
-      ]
-    },
     "rawTelemetry": {
       "type": "json"
-    },
-    "avgLatency": {
-      "type": "float"
-    },
-    "successRate": {
-      "type": "float"
     },
     "teacherNotes": {
       "type": "text"
@@ -79,11 +54,21 @@
       "relation": "oneToOne",
       "target": "plugin::users-permissions.user"
     },
-    "aiRecommendation": {
+    "aiRecommendationId": {
       "type": "string"
     },
-    "recommendationActivity": {
-      "type": "string"
+      "aiRecommendation": {
+      "type": "text"
+    },
+    "actualStartAt": {
+      "type": "datetime"
+    },
+    "actualEndAt": {
+      "type": "datetime"
+    },
+    "score": {
+      "type": "integer"
     }
+
   }
 }
