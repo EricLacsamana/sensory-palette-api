@@ -24,12 +24,14 @@
       "default": "pending",
       "enum": [
         "pending",
+        "queued",
         "in_progress",
+        "paused",
         "completed",
         "cancelled",
         "interrupted",
         "abandoned",
-        "reschedule_requested"
+        "reschedule"
       ]
     },
     "startAt": {
@@ -57,7 +59,7 @@
     "aiRecommendationId": {
       "type": "string"
     },
-      "aiRecommendation": {
+    "aiRecommendation": {
       "type": "text"
     },
     "actualStartAt": {
@@ -68,7 +70,27 @@
     },
     "score": {
       "type": "integer"
+    },
+    "accuracy": {
+      "type": "integer",
+      "min": 0,
+      "max": 100
+    },
+    "telemetryAnalysis": {
+      "type": "json"
+    },
+    "behavioralIndicators": {
+      "type": "json"
+    },
+    "timeLogs": {
+      "type": "json"
+    },
+    "enableLearnerControls": {
+      "type": "boolean",
+      "default": false
+    },
+    "isHandsFree": {
+      "type": "boolean"
     }
-
   }
 }

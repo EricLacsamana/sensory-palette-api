@@ -1,16 +1,5 @@
-'use strict';
-
 module.exports = {
   routes: [
-    {
-      method: 'POST',
-      path: '/activity-sessions/:id/recommend', 
-      handler: 'api::activity-session.activity-session.triggerAiRecommendation',
-      config: {
-        policies: [],
-        middlewares: [],
-      },
-    },
     {
       method: 'GET',
       path: '/activity-sessions/analytics/global',
@@ -19,7 +8,7 @@ module.exports = {
     },
     {
       method: 'GET',
-      path: '/activity-sessions/analytics/student/:documentId',
+      path: '/activity-sessions/analytics/student/:documentId', // Updated to documentId
       handler: 'analytics.getStudentData',
       config: { auth: false },
     },
@@ -29,5 +18,5 @@ module.exports = {
       handler: 'analytics.getComparisonData',
       config: { auth: false },
     }
-  ],
+  ]
 };

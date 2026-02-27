@@ -22,10 +22,6 @@
     "description": {
       "type": "text"
     },
-    "masteryThreshold": {
-      "type": "integer",
-      "default": 80
-    },
     "padConfiguration": {
       "type": "json"
     },
@@ -60,6 +56,32 @@
     "durationMinutes": {
       "type": "integer",
       "min": 0
+    },
+    "activityType": {
+      "type": "enumeration",
+      "enum": [
+        "game",
+        "video",
+        "image",
+        "visual"
+      ]
+    },
+    "activityFile": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "activityUrl": {
+      "type": "string"
+    },
+    "visualContent": {
+      "type": "richtext",
+      "required": false
     }
   }
 }

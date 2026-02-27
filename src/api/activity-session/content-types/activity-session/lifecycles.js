@@ -13,19 +13,25 @@ module.exports = {
   async beforeUpdate(event) {
     const { data, where } = event.params;
 
-    // Check if the session is specifically being started
+    // Check if the session is specifically being set to in_progress
     if (data.activitySessionStatus === 'in_progress') {
       
-      // Fallback: Generate ID if it somehow missed the beforeCreate hook
-      if (!data.sessionId) {
-        data.sessionId = `ACT-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-      }
-
-      // 2. THE INTERLOCK: Fetch the current session to identify the student
+      // THE INTERLOCK: Fetch the current database state for this session
       const currentSession = await strapi.db.query('api::activity-session.activity-session').findOne({
         where: { id: where.id },
         populate: ['student'],
       });
+
+      // BYPASS: If the session is ALREADY 'in_progress', allow the update to proceed.
+      // This prevents the interlock from blocking its own session during telemetry updates.
+      if (currentSession?.activitySessionStatus === 'in_progress') {
+        return; 
+      }
+
+      // Fallback: Generate ID if it somehow missed the beforeCreate hook
+      if (!data.sessionId && !currentSession?.sessionId) {
+        data.sessionId = `ACT-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+      }
 
       // Ensure the student exists before checking for conflicts
       if (currentSession?.student?.id) {
@@ -33,13 +39,12 @@ module.exports = {
           where: {
             student: currentSession.student.id,
             activitySessionStatus: 'in_progress',
-            // Ensure we aren't comparing the session against itself
-            id: { $ne: currentSession.id } 
+            id: { $ne: where.id } // Redundant but safe check
           },
-          select: ['id'] // OPTIMIZATION: We only need the ID, don't query the whole massive object
+          select: ['id']
         });
 
-        // 3. ENFORCE THE LOCK
+        // ENFORCE THE LOCK: Block only if another session is already running
         if (runningSession) {
           throw new ApplicationError(
             'Operation Rejected: This learner already has an active session running on the server.'

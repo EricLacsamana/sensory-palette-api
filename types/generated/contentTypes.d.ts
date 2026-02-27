@@ -471,16 +471,26 @@ export interface ApiActivitySessionActivitySession
     draftAndPublish: true;
   };
   attributes: {
+    accuracy: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 100;
+          min: 0;
+        },
+        number
+      >;
     activity: Schema.Attribute.Relation<'manyToOne', 'api::activity.activity'>;
     activitySessionStatus: Schema.Attribute.Enumeration<
       [
         'pending',
+        'queued',
         'in_progress',
+        'paused',
         'completed',
         'cancelled',
         'interrupted',
         'abandoned',
-        'reschedule_requested',
+        'reschedule',
       ]
     > &
       Schema.Attribute.DefaultTo<'pending'>;
@@ -488,10 +498,14 @@ export interface ApiActivitySessionActivitySession
     actualStartAt: Schema.Attribute.DateTime;
     aiRecommendation: Schema.Attribute.Text;
     aiRecommendationId: Schema.Attribute.String;
+    behavioralIndicators: Schema.Attribute.JSON;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    enableLearnerControls: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
     endAt: Schema.Attribute.DateTime;
+    isHandsFree: Schema.Attribute.Boolean;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -508,10 +522,12 @@ export interface ApiActivitySessionActivitySession
       'plugin::users-permissions.user'
     >;
     teacherNotes: Schema.Attribute.Text;
+    telemetryAnalysis: Schema.Attribute.JSON;
     therapist: Schema.Attribute.Relation<
       'oneToOne',
       'plugin::users-permissions.user'
     >;
+    timeLogs: Schema.Attribute.JSON;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -529,10 +545,18 @@ export interface ApiActivityActivity extends Struct.CollectionTypeSchema {
     draftAndPublish: true;
   };
   attributes: {
+    activityFile: Schema.Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios',
+      true
+    >;
     activityId: Schema.Attribute.UID<'name'>;
     activityStatus: Schema.Attribute.Enumeration<
       ['active', 'disabled', 'coming_soon']
     >;
+    activityType: Schema.Attribute.Enumeration<
+      ['game', 'video', 'image', 'visual']
+    >;
+    activityUrl: Schema.Attribute.String;
     banner: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
     categories: Schema.Attribute.Relation<
       'oneToMany',
@@ -556,13 +580,13 @@ export interface ApiActivityActivity extends Struct.CollectionTypeSchema {
       'api::activity.activity'
     > &
       Schema.Attribute.Private;
-    masteryThreshold: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<80>;
     name: Schema.Attribute.String;
     padConfiguration: Schema.Attribute.JSON;
     publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    visualContent: Schema.Attribute.RichText;
   };
 }
 
