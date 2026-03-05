@@ -94,6 +94,12 @@
       "relation": "oneToMany",
       "target": "plugin::users-permissions.user",
       "mappedBy": "therapist"
+    },
+    "activePasscode": {
+      "type": "string"
+    },
+    "passcodeExpiresAt": {
+      "type": "datetime"
     }
   }
 }

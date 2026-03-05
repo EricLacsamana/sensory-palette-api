@@ -480,6 +480,7 @@ export interface ApiActivitySessionActivitySession
         number
       >;
     activity: Schema.Attribute.Relation<'manyToOne', 'api::activity.activity'>;
+    activitySessionPasscode: Schema.Attribute.String;
     activitySessionStatus: Schema.Attribute.Enumeration<
       [
         'pending',
@@ -496,15 +497,20 @@ export interface ApiActivitySessionActivitySession
       Schema.Attribute.DefaultTo<'pending'>;
     actualEndAt: Schema.Attribute.DateTime;
     actualStartAt: Schema.Attribute.DateTime;
+    aiAccuracy: Schema.Attribute.Integer;
     aiRecommendation: Schema.Attribute.Text;
     aiRecommendationId: Schema.Attribute.String;
     behavioralIndicators: Schema.Attribute.JSON;
+    clinicalObservations: Schema.Attribute.Text;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    enableAdaptiveDifficulty: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<true>;
     enableLearnerControls: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
     endAt: Schema.Attribute.DateTime;
+    extraTimeSeconds: Schema.Attribute.Integer;
     isHandsFree: Schema.Attribute.Boolean;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -716,6 +722,61 @@ export interface ApiGlobalGlobal extends Struct.SingleTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+  };
+}
+
+export interface ApiNotificationNotification
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'notifications';
+  info: {
+    description: 'System alerts and insights for therapists';
+    displayName: 'Notification';
+    pluralName: 'notifications';
+    singularName: 'notification';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    activitySession: Schema.Attribute.Relation<
+      'oneToOne',
+      'api::activity-session.activity-session'
+    >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    isRead: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::notification.notification'
+    > &
+      Schema.Attribute.Private;
+    message: Schema.Attribute.Text & Schema.Attribute.Required;
+    metadata: Schema.Attribute.JSON;
+    priority: Schema.Attribute.Enumeration<
+      ['info', 'success', 'warning', 'critical']
+    > &
+      Schema.Attribute.DefaultTo<'info'>;
+    publishedAt: Schema.Attribute.DateTime;
+    title: Schema.Attribute.String & Schema.Attribute.Required;
+    type: Schema.Attribute.Enumeration<
+      [
+        'lifecycle',
+        'performance',
+        'ai_insight',
+        'hardware',
+        'schedule',
+        'admin',
+      ]
+    >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
   };
 }
 
@@ -1176,6 +1237,7 @@ export interface PluginUsersPermissionsUser
     draftAndPublish: false;
   };
   attributes: {
+    activePasscode: Schema.Attribute.String;
     blocked: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     confirmationToken: Schema.Attribute.String & Schema.Attribute.Private;
     confirmed: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
@@ -1198,6 +1260,7 @@ export interface PluginUsersPermissionsUser
     > &
       Schema.Attribute.Private;
     middleName: Schema.Attribute.String;
+    passcodeExpiresAt: Schema.Attribute.DateTime;
     password: Schema.Attribute.Password &
       Schema.Attribute.Private &
       Schema.Attribute.SetMinMaxLength<{
@@ -1251,6 +1314,7 @@ declare module '@strapi/strapi' {
       'api::category.category': ApiCategoryCategory;
       'api::device.device': ApiDeviceDevice;
       'api::global.global': ApiGlobalGlobal;
+      'api::notification.notification': ApiNotificationNotification;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

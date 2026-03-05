@@ -41,12 +41,13 @@ async function calculateMediaDuration(event) {
       if (Array.isArray(data.activityFile)) {
         fileIds = data.activityFile.map(f => typeof f === 'object' ? f.id : f);
       } else if (data.activityFile?.connect) {
-        fileIds = data.activityFile.connect.map(c => c.id);
+        fileIds = data.activityFile.connect.map(c => c.documentId || c.id);
       }
 
       if (fileIds.length > 0) {
-        const files = await strapi.db.query('plugin::upload.file').findMany({
-          where: { id: { $in: fileIds } },
+        // Updated to Strapi v5 format
+        const files = await strapi.documents('plugin::upload.file').findMany({
+          filters: { documentId: { $in: fileIds } },
         });
 
         let totalSeconds = 0;

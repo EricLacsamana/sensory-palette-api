@@ -3,51 +3,122 @@
 const { createCoreService } = require('@strapi/strapi').factories;
 const { GoogleGenAI, Type } = require("@google/genai");
 
+// ✨ BULLETPROOF TIME CALCULATOR: "Additive Active Intervals"
+const calculateEngagedTime = (timeLogs, actualStartAt, actualEndAt, status) => {
+    if (!actualStartAt) return 0;
+    
+    let logs = Array.isArray(timeLogs) ? [...timeLogs] : [];
+    
+    // 1. Build a chronological stream of events
+    const events = logs.map(l => ({
+        action: l.status, // 'start', 'pause', 'resume'
+        time: new Date(l.timestamp).getTime()
+    }));
+
+    // 2. Guarantee we have a baseline 'start' event
+    const startMs = new Date(actualStartAt).getTime();
+    if (!events.find(e => e.action === 'start' && e.time === startMs)) {
+        events.push({ action: 'start', time: startMs });
+    }
+    
+    // Sort chronologically
+    events.sort((a, b) => a.time - b.time);
+
+    let totalEngagedMs = 0;
+    let currentActiveStartMs = null;
+
+    // 3. Process the timeline additively
+    events.forEach(event => {
+        if (event.action === 'start' || event.action === 'resume') {
+            // Start the clock if it isn't already running
+            if (currentActiveStartMs === null) {
+                currentActiveStartMs = event.time;
+            }
+        } else if (event.action === 'pause') {
+            // Stop the clock and add the elapsed active time
+            if (currentActiveStartMs !== null) {
+                const activeDuration = event.time - currentActiveStartMs;
+                if (activeDuration > 0) totalEngagedMs += activeDuration;
+                currentActiveStartMs = null;
+            }
+        }
+    });
+
+    // 4. Handle dangling active states (e.g., session ended without a prior 'pause' log)
+    if (currentActiveStartMs !== null) {
+        if (actualEndAt) {
+            // Session is officially over, cap at actualEndAt
+            const endMs = new Date(actualEndAt).getTime();
+            if (endMs > currentActiveStartMs) {
+                totalEngagedMs += (endMs - currentActiveStartMs);
+            }
+        } else if (status === 'in_progress') {
+            // ONLY use Date.now() if the session is physically live right now!
+            // This prevents old, bugged sessions from accumulating thousands of hours.
+            totalEngagedMs += (Date.now() - currentActiveStartMs);
+        }
+    }
+
+    return Math.max(0, Math.floor(totalEngagedMs / 1000));
+};
+
 module.exports = createCoreService('api::activity-session.activity-session', ({ strapi }) => ({
   
   // --- AI RECOMMENDATION GENERATOR ---
   async generateAndSaveRecommendation(documentId) {
     try {
-      // 1. Fetch the session data
       const session = await strapi.documents('api::activity-session.activity-session').findOne({
         documentId,
         populate: {
           activity: { populate: { categories: { fields: ['name'] } } },
-          student: { fields: ['firstName'] },
+          student: { fields: ['firstName', 'dateOfBirth'] }, 
         }
       });
 
       if (!session) throw new Error("Session not found");
 
-      // 2. Fetch active activities for recommendations
+      let studentAge = 'Unknown';
+      if (session.student?.dateOfBirth) {
+        const dob = new Date(session.student.dateOfBirth);
+        const ageDifMs = Date.now() - dob.getTime();
+        const ageDate = new Date(ageDifMs);
+        studentAge = Math.abs(ageDate.getUTCFullYear() - 1970);
+      }
+
+      const studentName = session.student?.firstName || 'The student';
+
       const activeActivities = await strapi.documents('api::activity.activity').findMany({
         filters: { activityStatus: 'active' },
-        fields: ['name', 'documentId', 'activityType'],
+        fields: ['name', 'documentId'],
         populate: { categories: { fields: ['name'] } }
       });
 
       const formattedActivities = activeActivities.map(a => ({
         id: a.documentId,
         name: a.name,
-        type: a.activityType || 'unknown',
-        categories: a.categories?.map(c => c.name).join(', ') || 'Uncategorized'
+        categories: a.categories?.map((c) => c.name).join(', ') || 'Uncategorized'
       }));
 
-      // 3. Initialize AI and define the safe, SPED-aligned behavioral prompt
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const prompt = `
         Role: Behavioral Pattern Analyst for Special Education (SPED)
         Task: Analyze raw telemetry to identify cognitive and learning patterns. Do NOT provide medical diagnoses.
         
+        Context: 
+        - Learner: ${studentName} (Age: ${studentAge})
+        - Overall Accuracy: ${session.accuracy || 'Unknown'}%
+        - Environment: Adaptive Difficulty was ${session.enableAdaptiveDifficulty ? 'ENABLED' : 'DISABLED'}. 
+        - Hands-Free Flow: ${session.isHandsFree ? 'ENABLED (Instant transition)' : 'DISABLED (Manual start)'}.
+        - Therapist Time Adjustment: ${session.extraTimeSeconds || 0} seconds added/removed.
+        
         Instructions:
         1. Parse the JSON telemetry data.
         2. Return a JSON array "events" detailing the sequence of actions. 
         3. Each event MUST be: { "timestamp": "T+00s", "info": "Brief behavioral observation", "status": "SUCCESS" | "DELAY" | "ERROR" }.
-        4. Calculate final Accuracy (0-100) as an integer.
-        5. Provide a short behavioral insight focusing on learning styles and interactions.
-        6. Suggest a Next Activity ID from the available list to best support the student's learning profile.
-        7. Identify 1-3 "detectedPatterns". You MUST choose the pattern name from the following Approved Terminology list:
+        4. Provide a short behavioral insight focusing on ${studentName}'s learning styles and interactions explaining WHY they got that accuracy.
+        5. Suggest a Next Activity ID from the available list to best support their learning profile.
+        6. Identify 1-3 "detectedPatterns". You MUST choose the pattern name from the following Approved Terminology list:
            - "Impulsive Responding"
            - "High Distractibility"
            - "Rapid Task-Switching"
@@ -56,16 +127,19 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
            - "Rigid Task Execution"
            - "Prolonged Processing Time"
            - "Inconsistent Accuracy"
-           - "Erratic Navigation"
            - "Sustained Attention"
-           
+        6: Generate percentage "aiAccuracy" 0-100 NUMBER based on raw telemetry data.
         Each pattern must be an object containing the "pattern" name, a "confidence" level ("High", "Medium", or "Low"), and "evidence" (a brief explanation based on the telemetry data).
 
-        Raw Data: ${JSON.stringify(session.rawTelemetry || {})}
-        Available Activities: ${JSON.stringify(formattedActivities)}
+        Raw Telemetry Data: ${JSON.stringify(session.rawTelemetry || {})}
+        Time Logs: ${JSON.stringify(session.timeLogs || {})}
+        
+        Activity Recommendations:
+        - You can suggest the next available online activity from this list: ${JSON.stringify(formattedActivities)}
+        - You MUST also suggest off-screen, offline activities (e.g., daily living tasks, movement exercises, sensory activities). 
+        - CRITICAL: Ensure all offline recommendations are strictly developmentally appropriate for a ${studentAge}-year-old.
       `;
 
-      // 4. Generate AI Content with strict JSON Schema
       const result = await ai.models.generateContent({
         model: "gemini-2.5-flash", 
         contents: prompt,
@@ -76,7 +150,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
             properties: {
               insight: { type: Type.STRING },
               nextActivityId: { type: Type.STRING },
-              calculatedAccuracy: { type: Type.INTEGER },
+              aiAccuracy: { type: Type.NUMBER },
               detectedPatterns: { 
                 type: Type.ARRAY, 
                 items: { 
@@ -101,87 +175,72 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
                 }
               }
             },
-            required: ["insight", "nextActivityId", "calculatedAccuracy", "detectedPatterns", "events"]
+            required: ["insight", "nextActivityId", "detectedPatterns", "events"]
           }
         }
       });
 
-      // 5. Safely parse JSON (Bulletproof markdown stripping)
       const rawText = result.text || "";
       const cleanJsonText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const aiData = JSON.parse(cleanJsonText);
 
-      // 6. Update the Draft Document
       await strapi.documents('api::activity-session.activity-session').update({
         documentId,
         data: {
           aiRecommendation: aiData.insight, 
           aiRecommendationId: aiData.nextActivityId,
-          accuracy: Math.round(aiData.calculatedAccuracy), // Bulletproof rounding safeguard
+          aiAccuracy: aiData.aiAccuracy,
           telemetryAnalysis: aiData.events, 
-          behavioralIndicators: aiData.detectedPatterns // Saves the array of JSON objects to Strapi
+          behavioralIndicators: aiData.detectedPatterns
         }
       });
 
-      // 7. Publish the Document (Strapi 5 workflow)
       return await strapi.documents('api::activity-session.activity-session').publish({
         documentId
       });
 
     } catch (error) {
-      // 8. Log the actual error object so Pino doesn't swallow it
       strapi.log.error(`--- AI PROCESSING ERROR --- ${error.message}`, error);
       return { success: false, error: error.message };
     }
   },
 
   // --- CORE ANALYTICS GENERATOR ---
-// --- CORE ANALYTICS GENERATOR ---
   async generateDashboardMetrics({ startDate, endDate, studentId, therapistId }) {
     
-    // 1. Get Total Registered Students (Filtered by Therapist if applicable)
-    const studentQueryWhere = {
-      role: { type: 'student' } // Adjust to match your exact role type or name
-    };
-    
-    if (therapistId) {
-      studentQueryWhere.therapist = { id: therapistId };
-    }
+    // Total Students Filter
+    const studentQueryWhere = { role: { type: 'student' } };
+    if (therapistId) studentQueryWhere.therapist = { id: Number(therapistId) };
 
     const totalRegisteredStudents = await strapi.query('plugin::users-permissions.user').count({
       where: studentQueryWhere
     });
 
-    // 2. Setup Filters for Sessions
+    // Session Filters
     const filters = { actualStartAt: { $notNull: true } };
     
-    // Initialize student filter object
-    filters.student = {};
+    if (studentId) filters.student = { id: { $eq: Number(studentId) } }; 
+    if (therapistId) filters.therapist = { id: { $eq: Number(therapistId) } };
 
-    if (studentId) {
-        filters.student.id = { $eq: studentId }; 
-    }
-    
-    // NEW: Deep filter to only include sessions where the student's therapist matches
-    if (therapistId) {
-        filters.student.therapist = { id: { $eq: therapistId } };
-    }
-
-    // Clean up empty student filter if neither ID was passed
-    if (Object.keys(filters.student).length === 0) {
-        delete filters.student;
-    }
-    
+    // Append start-of-day and end-of-day times so "today" doesn't get cut off at midnight
     if (startDate && endDate) {
-      filters.actualStartAt = { $gte: startDate, $lte: endDate };
+      filters.actualStartAt = { 
+        $gte: startDate.includes('T') ? startDate : `${startDate}T00:00:00.000Z`, 
+        $lte: endDate.includes('T') ? endDate : `${endDate}T23:59:59.999Z` 
+      };
     } else if (startDate) {
-      filters.actualStartAt = { $gte: startDate };
+      filters.actualStartAt = { 
+        $gte: startDate.includes('T') ? startDate : `${startDate}T00:00:00.000Z` 
+      };
     }
 
-    // 3. Fetch Sessions
     const sessions = await strapi.documents('api::activity-session.activity-session').findMany({
       filters,
-      populate: ['activity', 'student'],
+      populate: {
+          activity: { populate: ['categories'] },
+          student: true,
+          therapist: true
+      },
       sort: 'actualStartAt:asc',
       status: 'published'
     });
@@ -191,54 +250,53 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
       overviewMetrics: { totalStudentsRegistered: totalRegisteredStudents }
     };
 
-    // 4. Initialize Accumulators
     let totalScore = 0, validScoreCount = 0;
     let totalAccuracy = 0, validAccuracyCount = 0;
-    let totalTimeMs = 0;
+    let totalTimeSeconds = 0;
     let completedCount = 0;
 
     const activeStudentsInPeriod = new Set();
     const timelineMap = {};
-    const activityTypeMap = {};
+    const activityCategoryMap = {};
     const topActivitiesMap = {};
     const behavioralMap = {};
 
-    // 5. Process Loop
     sessions.forEach(session => {
-      // Track unique active students
-      if (session.student?.id) {
-        activeStudentsInPeriod.add(session.student.id);
-      }
+      if (session.student?.id) activeStudentsInPeriod.add(session.student.id);
 
-      // Overview Metrics
       if (session.score != null) { totalScore += session.score; validScoreCount++; }
       if (session.accuracy != null) { totalAccuracy += session.accuracy; validAccuracyCount++; }
-      if (session.actualStartAt && session.actualEndAt) {
-        totalTimeMs += new Date(session.actualEndAt) - new Date(session.actualStartAt);
-      }
+      
+      const elapsedSecs = calculateEngagedTime(
+          session.timeLogs, 
+          session.actualStartAt, 
+          session.actualEndAt, 
+          session.activitySessionStatus
+      );
+      totalTimeSeconds += elapsedSecs;
+
       if (session.activitySessionStatus === 'completed') completedCount++;
 
-      // Timeline Grouping
       const day = new Date(session.actualStartAt).toISOString().split('T')[0];
       if (!timelineMap[day]) timelineMap[day] = { count: 0, totalScore: 0, totalAccuracy: 0 };
       timelineMap[day].count++;
       timelineMap[day].totalScore += session.score || 0;
       timelineMap[day].totalAccuracy += session.accuracy || 0;
 
-      // Activity Breakdown
       if (session.activity) {
-        const type = session.activity.activityType || 'unknown';
-        activityTypeMap[type] = (activityTypeMap[type] || 0) + 1;
+        const categories = session.activity.categories || [];
+        const primaryCategoryName = categories.length > 0 ? categories[0].name : 'Uncategorized';
+        
+        activityCategoryMap[primaryCategoryName] = (activityCategoryMap[primaryCategoryName] || 0) + 1;
 
         const actName = session.activity.name || 'Unnamed';
         if (!topActivitiesMap[actName]) {
-          topActivitiesMap[actName] = { type, count: 0, totalScore: 0 };
+          topActivitiesMap[actName] = { type: primaryCategoryName, count: 0, totalScore: 0 };
         }
         topActivitiesMap[actName].count++;
         topActivitiesMap[actName].totalScore += session.score || 0;
       }
 
-      // Behavioral Radar
       if (Array.isArray(session.behavioralIndicators)) {
         session.behavioralIndicators.forEach(ind => {
           const score = ind.confidence === 'High' ? 90 : ind.confidence === 'Medium' ? 60 : 30;
@@ -249,7 +307,6 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
       }
     });
 
-    // 6. Format Output
     return {
       overviewMetrics: {
         totalStudentsRegistered: totalRegisteredStudents, 
@@ -257,7 +314,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
         totalSessionsCompleted: completedCount,
         averageScore: validScoreCount ? Math.round(totalScore / validScoreCount) : 0,
         averageAccuracy: validAccuracyCount ? Math.round(totalAccuracy / validAccuracyCount) : 0,
-        totalTherapyHours: parseFloat((totalTimeMs / 3600000).toFixed(2)),
+        totalTherapyHours: parseFloat((totalTimeSeconds / 3600).toFixed(2)),
         completionRate: parseFloat(((completedCount / sessions.length) * 100).toFixed(1))
       },
       charts: {
@@ -267,10 +324,10 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
           avgScore: Math.round(timelineMap[date].totalScore / timelineMap[date].count),
           avgAccuracy: Math.round(timelineMap[date].totalAccuracy / timelineMap[date].count)
         })),
-        activityTypeDistribution: Object.keys(activityTypeMap).map(type => ({
-          activityType: type,
-          sessionCount: activityTypeMap[type],
-          percentage: parseFloat(((activityTypeMap[type] / sessions.length) * 100).toFixed(1))
+        activityTypeDistribution: Object.keys(activityCategoryMap).map(category => ({
+          activityType: category, 
+          sessionCount: activityCategoryMap[category],
+          percentage: parseFloat(((activityCategoryMap[category] / sessions.length) * 100).toFixed(1))
         })),
         behavioralRadar: Object.keys(behavioralMap).map(pattern => {
           const avgScore = Math.round(behavioralMap[pattern].total / behavioralMap[pattern].count);
@@ -293,9 +350,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
     };
   },
 
-  // --- COMPARISON GENERATOR ---
-async generateComparisonMetrics({ baseStudent, compareStudent, startDate, endDate, therapistId }) {
-    // Pass therapistId down to ensure restricted access
+  async generateComparisonMetrics({ baseStudent, compareStudent, startDate, endDate, therapistId }) {
     const studentAData = await this.generateDashboardMetrics({ 
       studentId: baseStudent, startDate, endDate, therapistId 
     });
@@ -331,6 +386,73 @@ async generateComparisonMetrics({ baseStudent, compareStudent, startDate, endDat
           compareStudentRadar: studentBData.charts?.behavioralRadar || []
       }
     };
-  }
+  },
+  
+  // ✨ CUSTOM PASSCODE LOGIC ✨
+  async generateStudentPasscode(studentId, sessionIds, extraTimeSeconds) {
+        if (!studentId) throw new Error('Cannot generate passcode: studentId is undefined');
 
+        const safeStudentId = Number(studentId); 
+
+        // 1. Fetch the student first
+        const student = await strapi.db.query('plugin::users-permissions.user').findOne({
+            where: { id: safeStudentId },
+            select: ['id', 'activePasscode', 'passcodeExpiresAt']
+        });
+
+        if (!student) throw new Error(`Student with ID ${safeStudentId} not found`);
+
+        const now = new Date();
+        let finalPasscode = student.activePasscode; // Default to current PIN
+        let needsNewPin = false;
+
+        // 2. Determine if we need a new PIN
+        if (!student.activePasscode || !student.passcodeExpiresAt) {
+            needsNewPin = true;
+        } else {
+            const expiresDate = new Date(student.passcodeExpiresAt);
+            if (expiresDate <= now) {
+                needsNewPin = true;
+            }
+        }
+
+        // 3. Generate new PIN if required
+        if (needsNewPin) {
+            finalPasscode = Math.floor(100000 + Math.random() * 900000).toString();
+            const expiresAt = new Date(Date.now() + (4 * 60 * 60 * 1000)); // 4 hours
+
+            await strapi.db.query('plugin::users-permissions.user').update({
+                where: { id: safeStudentId },
+                data: {
+                    activePasscode: finalPasscode,
+                    passcodeExpiresAt: expiresAt,
+                }
+            });
+            strapi.log.info(`[Auth Generator] ✨ NEW PIN: ${finalPasscode}`);
+        } else {
+            strapi.log.info(`[Auth Generator] ♻️ REUSING PIN: ${finalPasscode}`);
+        }
+
+        // 4. ✨ THE CRITICAL FIX: Guard the updateMany ✨
+        if (!finalPasscode) {
+            strapi.log.error('[Auth Generator] Critical Failure: No passcode available to tag sessions.');
+            return null;
+        }
+
+        try {
+            await strapi.db.query('api::activity-session.activity-session').updateMany({
+                where: {
+                    student: safeStudentId, 
+                    activitySessionStatus: { $in: ['in_progress', 'queued', 'pending'] }
+                },
+                data: { 
+                    activitySessionPasscode: finalPasscode 
+                }
+            });
+        } catch (dbError) {
+            strapi.log.error(`[Auth Generator] Database tagging failed: ${dbError.message}`);
+        }
+
+        return finalPasscode; 
+    }
 }));

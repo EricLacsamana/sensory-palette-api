@@ -1,12 +1,9 @@
 'use strict';
 
-// Helper function to extract the therapist ID from the authenticated user
 const getTherapistId = (ctx) => {
   const user = ctx.state.user;
-  // Check if user is authenticated and has the therapist role.
-  // Adjust 'type' or 'name' based on how your roles are strictly defined in Strapi.
   if (user && user.role && (user.role.type === 'therapist' || user.role.name?.toLowerCase() === 'therapist')) {
-    return user.id;
+    return Number(user.id);
   }
   return null;
 };
@@ -15,15 +12,10 @@ module.exports = {
   async getGlobalData(ctx) {
     try {
       const { startDate, endDate } = ctx.query;
-      const therapistId = getTherapistId(ctx); // Get therapist ID if applicable
-
-      // Pass the therapistId into the service
+      const therapistId = getTherapistId(ctx);
       const data = await strapi.service('api::activity-session.activity-session').generateDashboardMetrics({ 
-        startDate, 
-        endDate,
-        therapistId 
+        startDate, endDate, therapistId 
       });
-      
       ctx.body = { data };
     } catch (err) {
       strapi.log.error('Global Analytics Error:', err);
@@ -35,12 +27,12 @@ module.exports = {
     try {
       const paramId = ctx.params.id || ctx.params.studentId || ctx.params.documentId; 
       const { startDate, endDate } = ctx.query;
-      const therapistId = getTherapistId(ctx); // Get therapist ID if applicable
+      const therapistId = getTherapistId(ctx); 
       
       const data = await strapi.service('api::activity-session.activity-session').generateDashboardMetrics({ 
         startDate, 
         endDate, 
-        studentId: Number(paramId), // Convert to Number for users-permissions 'id' matching
+        studentId: Number(paramId), // Ensured it is an integer for user ID
         therapistId
       });
       
@@ -54,16 +46,15 @@ module.exports = {
   async getComparisonData(ctx) {
     try {
       const { baseStudent, compareStudent, startDate, endDate } = ctx.query;
-      const therapistId = getTherapistId(ctx); // Get therapist ID if applicable
+      const therapistId = getTherapistId(ctx); 
       
       if (!baseStudent) {
-        return ctx.badRequest('baseStudent documentId is required for comparison.');
+        return ctx.badRequest('baseStudent id is required for comparison.');
       }
 
-      // Pass therapistId so the comparison is also safely restricted
       const data = await strapi.service('api::activity-session.activity-session').generateComparisonMetrics({
-        baseStudent, 
-        compareStudent, 
+        baseStudent: Number(baseStudent), 
+        compareStudent: Number(compareStudent), 
         startDate, 
         endDate,
         therapistId

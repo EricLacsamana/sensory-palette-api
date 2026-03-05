@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "notifications",
+  "info": {
+    "singularName": "notification",
+    "pluralName": "notifications",
+    "displayName": "Notification",
+    "description": "System alerts and insights for therapists"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "message": {
+      "type": "text",
+      "required": true
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": ["lifecycle", "performance", "ai_insight", "hardware", "schedule", "admin"]
+    },
+    "priority": {
+      "type": "enumeration",
+      "enum": ["info", "success", "warning", "critical"],
+      "default": "info"
+    },
+    "isRead": {
+      "type": "boolean",
+      "default": false
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "activitySession": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::activity-session.activity-session"
+    }
+  }
+}

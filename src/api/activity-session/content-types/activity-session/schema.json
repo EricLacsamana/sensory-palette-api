@@ -91,6 +91,22 @@
     },
     "isHandsFree": {
       "type": "boolean"
+    },
+    "enableAdaptiveDifficulty": {
+      "type": "boolean",
+      "default": true
+    },
+    "clinicalObservations": {
+      "type": "text"
+    },
+    "extraTimeSeconds": {
+      "type": "integer"
+    },
+    "activitySessionPasscode": {
+      "type": "string"
+    },
+    "aiAccuracy": {
+      "type": "integer"
     }
   }
 }
