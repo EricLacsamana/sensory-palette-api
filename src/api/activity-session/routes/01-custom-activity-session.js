@@ -15,7 +15,7 @@ module.exports = {
       method: 'GET',
       path: '/activity-sessions/analytics/global',
       handler: 'analytics.getGlobalData',
-      config: { auth: false }, 
+      config: {  auth: false }, 
     },
     {
       method: 'GET',

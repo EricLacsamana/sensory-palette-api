@@ -150,7 +150,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
             properties: {
               insight: { type: Type.STRING },
               nextActivityId: { type: Type.STRING },
-              aiAccuracy: { type: Type.NUMBER },
+              aiAccuracy: { type: Type.INTEGER },
               detectedPatterns: { 
                 type: Type.ARRAY, 
                 items: { 
