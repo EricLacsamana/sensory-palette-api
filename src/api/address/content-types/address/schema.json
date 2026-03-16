@@ -1,0 +1,54 @@
+{
+  "kind": "collectionType",
+  "collectionName": "addresses",
+  "info": {
+    "singularName": "address",
+    "pluralName": "addresses",
+    "displayName": "Address"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "addressLabel": {
+      "type": "string",
+      "required": false,
+      "default": "Home",
+      "description": "e.g., Office, Home, Billing"
+    },
+    "streetAddress": {
+      "type": "string",
+      "required": false,
+      "description": "House number and street name"
+    },
+    "city": {
+      "type": "string",
+      "required": false
+    },
+    "stateProvince": {
+      "type": "string",
+      "required": false,
+      "description": "State, Province, or Region"
+    },
+    "postalCode": {
+      "type": "string",
+      "required": false,
+      "description": "ZIP or Postal code"
+    },
+    "countryCode": {
+      "type": "string",
+      "required": false,
+      "maxLength": 2,
+      "description": "ISO 3166-1 alpha-2 code (e.g., US, PH, GB)"
+    },
+    "isDefault": {
+      "type": "boolean",
+      "default": false
+    },
+    "geoCoordinates": {
+      "type": "json",
+      "description": "Store { lat, lng } for mapping"
+    }
+  }
+}

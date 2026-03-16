@@ -1,0 +1,115 @@
+{
+  "kind": "collectionType",
+  "collectionName": "activity_sessions",
+  "info": {
+    "singularName": "activity-session",
+    "pluralName": "activity-sessions",
+    "displayName": "Activity Session"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "sessionId": {
+      "type": "uid"
+    },
+    "activity": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::activity.activity"
+    },
+    "activitySessionStatus": {
+      "type": "enumeration",
+      "default": "pending",
+      "enum": [
+        "pending",
+        "queued",
+        "in_progress",
+        "paused",
+        "completed",
+        "cancelled",
+        "interrupted",
+        "abandoned",
+        "reschedule"
+      ]
+    },
+    "startAt": {
+      "type": "datetime"
+    },
+    "endAt": {
+      "type": "datetime"
+    },
+    "rawTelemetry": {
+      "type": "json"
+    },
+    "teacherNotes": {
+      "type": "text"
+    },
+    "therapist": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "student": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "aiRecommendationId": {
+      "type": "string"
+    },
+    "aiRecommendation": {
+      "type": "text"
+    },
+    "actualStartAt": {
+      "type": "datetime"
+    },
+    "actualEndAt": {
+      "type": "datetime"
+    },
+    "score": {
+      "type": "integer"
+    },
+      "rounds": {
+      "type": "integer"
+    },
+    "accuracy": {
+      "type": "integer",
+      "min": 0,
+      "max": 100
+    },
+    "telemetryAnalysis": {
+      "type": "json"
+    },
+    "behavioralIndicators": {
+      "type": "json"
+    },
+    "timeLogs": {
+      "type": "json"
+    },
+    "enableLearnerControls": {
+      "type": "boolean",
+      "default": false
+    },
+    "isHandsFree": {
+      "type": "boolean"
+    },
+    "enableAdaptiveDifficulty": {
+      "type": "boolean",
+      "default": true
+    },
+    "clinicalObservations": {
+      "type": "text"
+    },
+    "extraTimeSeconds": {
+      "type": "integer"
+    },
+    "activitySessionPasscode": {
+      "type": "string"
+    },
+    "aiAccuracy": {
+      "type": "integer"
+    }
+  }
+}
