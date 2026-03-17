@@ -1246,6 +1246,7 @@ export interface PluginUsersPermissionsUser
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     dateOfBirth: Schema.Attribute.Date;
+    diagnosis: Schema.Attribute.Enumeration<['adhd', 'autism']>;
     email: Schema.Attribute.Email &
       Schema.Attribute.Required &
       Schema.Attribute.SetMinMaxLength<{

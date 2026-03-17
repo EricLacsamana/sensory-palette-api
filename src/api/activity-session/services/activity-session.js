@@ -121,7 +121,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
         3. Each event MUST be: { "timestamp": "T+00s", "info": "Brief behavioral observation", "status": "SUCCESS" | "DELAY" | "ERROR" }.
         4. Provide a short behavioral insight focusing on ${studentName}'s learning styles and interactions explaining WHY they got that accuracy/score. Note their speed vs precision.
         5. Suggest a Next Activity ID from the available list to best support their learning profile.
-        6. Identify 1-3 "detectedPatterns". You MUST choose the pattern name from the following Approved Terminology list:
+        6. Identify minimum of 3 "detectedPatterns". You MUST choose the pattern name from the following Approved Terminology list:
            - "Impulsive Responding"
            - "High Distractibility"
            - "Rapid Task-Switching"
@@ -220,29 +220,41 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
     if (studentId) filters.student = { id: { $eq: Number(studentId) } }; 
     if (therapistId) filters.therapist = { id: { $eq: Number(therapistId) } };
 
-    // Set Timezone-safe boundaries
-    const startBoundary = new Date(`${startDate.split('T')[0]}T00:00:00`);
-    const endBoundary = new Date(`${endDate.split('T')[0]}T23:59:59.999`);
+    // 1. WIDEN THE DATABASE NET (Over-fetch to bypass DB timezone bleed)
+    const startStr = startDate.split('T')[0];
+    const endStr = endDate.split('T')[0];
 
-    filters.actualStartAt = { 
-      $gte: startBoundary.toISOString(), 
-      $lte: endBoundary.toISOString() 
+    // Pad by 1 day backwards and forwards to ensure no UTC rollovers hide data
+    const startBoundary = new Date(`${startStr}T00:00:00.000Z`);
+    startBoundary.setUTCDate(startBoundary.getUTCDate() - 1); 
+
+    const endBoundary = new Date(`${endStr}T23:59:59.999Z`);
+    endBoundary.setUTCDate(endBoundary.getUTCDate() + 1);
+
+    filters.actualStartAt = {
+      // @ts-ignore
+      $gte: startBoundary,
+      $lte: endBoundary,
     };
-
+    
     const sessions = await strapi.documents('api::activity-session.activity-session').findMany({
       filters,
       populate: { activity: { populate: ['categories'] }, student: true, therapist: true },
       sort: 'actualStartAt:asc',
-      status: 'published'
+      status: 'published' // Ensure this is expected if testing immediately after session completion
     });
 
-    // 1. GENERATE ALL DATES IN RANGE (Ensures 0s are returned for empty days)
+    console.log(`Fetched ${sessions.length} sessions (includes 1-day widened padding)`);
+
+    // 2. STRICTLY MAP ONLY THE REQUESTED DATES
     const timelineMap = {};
-    let cursor = new Date(startBoundary);
-    while (cursor <= endBoundary) {
+    let cursor = new Date(`${startStr}T00:00:00.000Z`);
+    const strictEnd = new Date(`${endStr}T00:00:00.000Z`);
+
+    while (cursor <= strictEnd) {
       const dayKey = cursor.toISOString().split('T')[0];
       timelineMap[dayKey] = { count: 0, totalScore: 0, totalAccuracy: 0, totalRounds: 0 };
-      cursor.setDate(cursor.getDate() + 1);
+      cursor.setUTCDate(cursor.getUTCDate() + 1); // Pure UTC addition to prevent DST skips
     }
 
     let totalScore = 0, validScoreCount = 0;
@@ -255,8 +267,20 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
     const topActivitiesMap = {};
     const behavioralMap = {};
 
-    // 2. FILL DATA FROM SESSIONS
-    sessions.forEach(session => {
+    // 3. MAP DATA BY PURE STRING MATCHING (Ignoring timezones completely)
+     sessions.forEach(session => {
+     const sessionDate = new Date(session.actualStartAt);
+      
+      // 🚨 CRITICAL FIX: Convert the UTC database time into your exact local timezone
+      // 'en-CA' ensures the output is strictly formatted as 'YYYY-MM-DD'
+      // Change 'Asia/Manila' to your specific timezone if you are located elsewhere!
+      const sessionDay = sessionDate.toLocaleDateString('en-CA', { 
+          timeZone: 'Asia/Manila' 
+      });
+
+      // If the over-fetched DB query grabbed out-of-bounds padding data, ignore it!
+      if (!timelineMap[sessionDay]) return;
+
       if (session.student?.id) activeStudentsInPeriod.add(session.student.id);
       if (session.score != null) { totalScore += session.score; validScoreCount++; }
       if (session.accuracy != null) { totalAccuracy += session.accuracy; validAccuracyCount++; }
@@ -267,13 +291,11 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
 
       if (session.activitySessionStatus === 'completed') completedCount++;
 
-      const day = new Date(session.actualStartAt).toISOString().split('T')[0];
-      if (timelineMap[day]) {
-        timelineMap[day].count++;
-        timelineMap[day].totalScore += session.score || 0;
-        timelineMap[day].totalAccuracy += session.accuracy || 0;
-        timelineMap[day].totalRounds += session.rounds || 0;
-      }
+      // Safely map to the strictly defined timeline
+      timelineMap[sessionDay].count++;
+      timelineMap[sessionDay].totalScore += session.score || 0;
+      timelineMap[sessionDay].totalAccuracy += session.accuracy || 0;
+      timelineMap[sessionDay].totalRounds += session.rounds || 0;
 
       if (session.activity) {
         const categories = session.activity.categories || [];
@@ -298,7 +320,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
       }
     });
 
-    // 3. DYNAMIC AGGREGATION LOGIC (Daily vs Weekly vs Monthly)
+    // 4. DYNAMIC AGGREGATION LOGIC (Daily vs Weekly vs Monthly)
     const dateKeys = Object.keys(timelineMap).sort();
     const rangeInDays = dateKeys.length;
     let finalTimeline = [];
@@ -355,14 +377,14 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
         averageAccuracy: validAccuracyCount ? Math.round(totalAccuracy / validAccuracyCount) : 0,
         totalRounds: totalRounds,
         totalTherapyHours: parseFloat((totalTimeSeconds / 3600).toFixed(2)),
-        completionRate: parseFloat(((completedCount / sessions.length) * 100).toFixed(1))
+        completionRate: sessions.length > 0 ? parseFloat(((completedCount / sessions.length) * 100).toFixed(1)) : 0
       },
       charts: {
         performanceTimeline: finalTimeline,
         activityTypeDistribution: Object.keys(activityCategoryMap).map(category => ({
           activityType: category, 
           sessionCount: activityCategoryMap[category],
-          percentage: parseFloat(((activityCategoryMap[category] / sessions.length) * 100).toFixed(1))
+          percentage: sessions.length > 0 ? parseFloat(((activityCategoryMap[category] / sessions.length) * 100).toFixed(1)) : 0
         })),
         behavioralRadar: Object.keys(behavioralMap).map(pattern => {
           const avgScore = Math.round(behavioralMap[pattern].total / behavioralMap[pattern].count);
