@@ -23,7 +23,7 @@ function getNetworkIp() {
 const currentIp = getNetworkIp();
 
 module.exports = ({ env }) => ({
-  host: env('HOST', '0.0.0.0'), // 0.0.0.0 ensures it listens to the network
+  host: env('HOST', '127.0.0.1'), // 0.0.0.0 ensures it listens to the network
   port: env.int('PORT', 1337),
   url: `http://${currentIp}:${env.int('PORT', 1337)}`, // Dynamically sets your current network IP
   app: {
