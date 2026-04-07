@@ -1,74 +1,83 @@
 'use strict';
 
 module.exports = {
-  /**
-   * An asynchronous register function that runs before
-   * your application is initialized.
-   *
-   * This gives you an opportunity to extend code.
-   */
   register(/*{ strapi }*/) {},
 
-  /**
-   * An asynchronous bootstrap function that runs before
-   * your application gets started.
-   *
-   * This gives you an opportunity to set up your data model,
-   * run jobs, or perform some special logic.
-   */
-
-
   bootstrap({ strapi }) {
-    // Helper function to calculate age
+    // 1. Helper function to calculate age
     const calculateAge = (dob) => {
       if (!dob) return null;
       const birthDate = new Date(dob);
       const today = new Date();
       let age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
-
-      // Adjust if birthday hasn't happened yet this year
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
         age--;
       }
       return age;
     };
 
+    // 2. Helper to format a single user object (Student)
+    const formatUser = (user) => {
+      if (!user) return;
+      // Calculate fullName
+      user.fullName = (user.firstName && user.lastName)
+        ? `${user.firstName} ${user.lastName}`
+        : user.username;
+
+      // Calculate age
+      if (user.dateOfBirth) {
+        user.age = calculateAge(user.dateOfBirth);
+      }
+    };
+
     strapi.db.lifecycles.subscribe({
-      models: ['plugin::users-permissions.user'],
+      // List all models that should trigger this formatting
+      models: [
+        'plugin::users-permissions.user', 
+        'api::appointment.appointment',
+        'api::activity-session.activity-session'
+      ],
 
       afterFindOne(event) {
-        const { result } = event;
-        if (result) {
-          // 1. Calculate fullName
-          result.fullName = (result.firstName && result.lastName)
-            ? `${result.firstName} ${result.lastName}`
-            : result.username;
+        const { result, model } = event;
+        if (!result) return;
 
-          // 2. Calculate age if dateOfBirth exists
-          if (result.dateOfBirth) {
-            result.age = calculateAge(result.dateOfBirth);
-          }
+        // Logic for Direct User query
+        if (model.uid === 'plugin::users-permissions.user') {
+          formatUser(result);
+        } 
+        
+        // Logic for Appointments OR Activity Sessions (Both use the "student" relation)
+        if (
+          (model.uid === 'api::appointment.appointment' || 
+           model.uid === 'api::activity-session.activity-session') && 
+          result.student
+        ) {
+          formatUser(result.student);
         }
       },
 
       afterFindMany(event) {
-        const { result } = event;
-        if (Array.isArray(result)) {
-          result.forEach((user) => {
-            // 1. Calculate fullName
-            user.fullName = (user.firstName && user.lastName)
-              ? `${user.firstName} ${user.lastName}`
-              : user.username;
+        const { result, model } = event;
+        if (!Array.isArray(result)) return;
 
-            // 2. Calculate age if dateOfBirth exists
-            if (user.dateOfBirth) {
-              user.age = calculateAge(user.dateOfBirth);
-            }
-          });
-        }
+        result.forEach((item) => {
+          // If items are Users
+          if (model.uid === 'plugin::users-permissions.user') {
+            formatUser(item);
+          }
+          
+          // If items are Appointments or Activity Sessions
+          if (
+            (model.uid === 'api::appointment.appointment' || 
+             model.uid === 'api::activity-session.activity-session') && 
+            item.student
+          ) {
+            formatUser(item.student);
+          }
+        });
       },
     });
   },
 };
-

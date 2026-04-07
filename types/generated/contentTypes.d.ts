@@ -500,6 +500,11 @@ export interface ApiActivitySessionActivitySession
     aiAccuracy: Schema.Attribute.Integer;
     aiRecommendation: Schema.Attribute.Text;
     aiRecommendationId: Schema.Attribute.String;
+    aiRecommendationRationale: Schema.Attribute.Text;
+    appointment: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::appointment.appointment'
+    >;
     behavioralIndicators: Schema.Attribute.JSON;
     clinicalObservations: Schema.Attribute.Text;
     createdAt: Schema.Attribute.DateTime;
@@ -511,6 +516,8 @@ export interface ApiActivitySessionActivitySession
       Schema.Attribute.DefaultTo<false>;
     endAt: Schema.Attribute.DateTime;
     extraTimeSeconds: Schema.Attribute.Integer;
+    isGeneratingAI: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
     isHandsFree: Schema.Attribute.Boolean;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -518,6 +525,14 @@ export interface ApiActivitySessionActivitySession
       'api::activity-session.activity-session'
     > &
       Schema.Attribute.Private;
+    nextActivitySession: Schema.Attribute.Relation<
+      'oneToOne',
+      'api::activity-session.activity-session'
+    >;
+    previousActivitySession: Schema.Attribute.Relation<
+      'oneToOne',
+      'api::activity-session.activity-session'
+    >;
     publishedAt: Schema.Attribute.DateTime;
     rawTelemetry: Schema.Attribute.JSON;
     rounds: Schema.Attribute.Integer;
@@ -635,6 +650,64 @@ export interface ApiAddressAddress extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiAppointmentAppointment extends Struct.CollectionTypeSchema {
+  collectionName: 'appointments';
+  info: {
+    description: 'Scheduled therapy or medical appointments';
+    displayName: 'Appointment';
+    pluralName: 'appointments';
+    singularName: 'appointment';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    activitySessions: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::activity-session.activity-session'
+    >;
+    actualEndAt: Schema.Attribute.DateTime;
+    actualStartAt: Schema.Attribute.DateTime;
+    appointmentStatus: Schema.Attribute.Enumeration<
+      [
+        'pending',
+        'in_progress',
+        'completed',
+        'cancelled',
+        'no_show',
+        'reschedule',
+      ]
+    > &
+      Schema.Attribute.DefaultTo<'pending'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    endAt: Schema.Attribute.DateTime;
+    internalNotes: Schema.Attribute.Text;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::appointment.appointment'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    rawTelemetry: Schema.Attribute.JSON;
+    service: Schema.Attribute.Relation<'oneToOne', 'api::service.service'>;
+    startAt: Schema.Attribute.DateTime;
+    student: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    therapist: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
   collectionName: 'categories';
   info: {
@@ -743,6 +816,10 @@ export interface ApiNotificationNotification
       'oneToOne',
       'api::activity-session.activity-session'
     >;
+    appointment: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::appointment.appointment'
+    >;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -778,6 +855,46 @@ export interface ApiNotificationNotification
       'manyToOne',
       'plugin::users-permissions.user'
     >;
+  };
+}
+
+export interface ApiServiceService extends Struct.CollectionTypeSchema {
+  collectionName: 'services';
+  info: {
+    description: 'Types of therapy or medical services offered by therapists';
+    displayName: 'Service';
+    pluralName: 'services';
+    singularName: 'service';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    banner: Schema.Attribute.Media<'images'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    description: Schema.Attribute.Text;
+    durationMinutes: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 5;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<30>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::service.service'
+    > &
+      Schema.Attribute.Private;
+    name: Schema.Attribute.String & Schema.Attribute.Required;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
   };
 }
 
@@ -1278,6 +1395,10 @@ export interface PluginUsersPermissionsUser
       'manyToOne',
       'plugin::users-permissions.role'
     >;
+    specialty: Schema.Attribute.Enumeration<
+      ['OT', 'BCBA', 'RBT', 'SLP', 'PT', 'LCSW', 'Psychologist']
+    > &
+      Schema.Attribute.Required;
     students: Schema.Attribute.Relation<
       'oneToMany',
       'plugin::users-permissions.user'
@@ -1313,10 +1434,12 @@ declare module '@strapi/strapi' {
       'api::activity-session.activity-session': ApiActivitySessionActivitySession;
       'api::activity.activity': ApiActivityActivity;
       'api::address.address': ApiAddressAddress;
+      'api::appointment.appointment': ApiAppointmentAppointment;
       'api::category.category': ApiCategoryCategory;
       'api::device.device': ApiDeviceDevice;
       'api::global.global': ApiGlobalGlobal;
       'api::notification.notification': ApiNotificationNotification;
+      'api::service.service': ApiServiceService;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

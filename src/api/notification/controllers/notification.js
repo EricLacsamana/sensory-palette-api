@@ -17,6 +17,11 @@ module.exports = createCoreController('api::notification.notification', ({ strap
       populate: {
         activitySession: {
           populate: ['activity', 'student']
+        },
+        // ✨ THE FIX: Populate the appointment and its service ✨
+        // This allows the frontend to see 'notif.appointment' and show the button
+        appointment: {
+          populate: ['service', 'student']
         }
       }
     });
@@ -38,7 +43,7 @@ module.exports = createCoreController('api::notification.notification', ({ strap
     return ctx.send(updated);
   },
 
-  // NEW: Mark a notification as unread
+  // Mark a notification as unread
   async markUnread(ctx) {
     const user = ctx.state.user;
     const { documentId } = ctx.params;

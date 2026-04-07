@@ -100,7 +100,8 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
           * Score (Correct Answers): ${session.score ?? 0}
           * Total Rounds (Attempts): ${session.rounds ?? 0}
           * Accuracy: ${session.accuracy ?? 0}%
-          * Actual Time Spent Active (Excluding Pauses): ${timeString}`;
+          * Actual Time Spent Active (Excluding Pauses): ${timeString}
+          * Game Environment: Adaptive Difficulty was ${session.enableAdaptiveDifficulty ? 'ENABLED' : 'DISABLED'}. `;
       }
 
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -111,15 +112,18 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
         
         Context: 
         - Learner: ${studentName} (Age: ${studentAge})
-        - Environment: Adaptive Difficulty was ${session.enableAdaptiveDifficulty ? 'ENABLED' : 'DISABLED'}. 
+        - Diagnosis: ${session.diagnosis || 'Not provided'}
+
         - Hands-Free Flow: ${session.isHandsFree ? 'ENABLED (Instant transition)' : 'DISABLED (Manual start)'}.
         - Therapist Time Adjustment: ${session.extraTimeSeconds || 0} seconds added/removed.${gameStatsContext}
+        - Therapist Observations: ${session.therapistObservations || 'None'}
+        - Activity Details: ${session.activity ? `${session.activity.name} [${session.activity.categories?.map((c) => c.name).join(', ') || 'Uncategorized'}]` : 'No activity data'}
         
         Instructions:
         1. Parse the JSON telemetry data.
-        2. Return a JSON array "events" detailing the sequence of actions. 
+        2. Return a JSON array "events" detailing the sequence of actions.
         3. Each event MUST be: { "timestamp": "T+00s", "info": "Brief behavioral observation", "status": "SUCCESS" | "DELAY" | "ERROR" }.
-        4. Provide a short behavioral insight focusing on ${studentName}'s learning styles and interactions explaining WHY they got that accuracy/score. Note their speed vs precision.
+        4. Provide a short behavioral insight focusing on ${studentName}'s learning styles and interactions explaining WHY they got that accuracy/score in that certain timelapse. Note their speed vs precision.
         5. Suggest a Next Activity ID from the available list to best support their learning profile.
         6. Identify minimum of 3 "detectedPatterns". You MUST choose the pattern name from the following Approved Terminology list:
            - "Impulsive Responding"
@@ -134,14 +138,25 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
         7: Generate percentage "aiAccuracy" 0-100 NUMBER representing your confidence in their actual understanding based on raw telemetry.
         Each pattern must be an object containing the "pattern" name, a "confidence" level ("High", "Medium", or "Low"), and "evidence" (a brief explanation based on the telemetry data).
 
-        Raw Telemetry Data: ${JSON.stringify(session.rawTelemetry || {})}
-        Time Logs: ${JSON.stringify(session.timeLogs || {})}
-        
-        Activity Recommendations:
+       8:  Activity Recommendations "aiRecommendationRationale":
         - You can suggest the next available online activity from this list: ${JSON.stringify(formattedActivities)}
         - You MUST also suggest off-screen, offline activities (e.g., daily living tasks, movement exercises, sensory activities). 
-      `;
+        - For off-screen activities, you can create your own activity name but it MUST be relevant to the detected behavioral patterns and learning styles you identified.
+        - Your suggestions should be practical and actionable for a caregiver or therapist to implement at home, not just in the app.
+        
+          Raw Telemetry Data: ${JSON.stringify(session.rawTelemetry || {})}
+          Time: ${JSON.stringify(session.actualStartAt || '')} - ${JSON.stringify(session.actualEndAt || '') }.
+          Time Logs: ${JSON.stringify(session.timeLogs || {})}
+        9: Do not suggest same activity back to back. If the system suggests an activity that the student has already done in the past 2 weeks, you MUST choose a different activity from the list.
+        `;
 
+      // 1. SET GENERATING FLAG TO TRUE
+      await strapi.documents('api::activity-session.activity-session').update({
+        documentId,
+        data: { isGeneratingAI: true }
+      });
+
+      // 2. RUN AI
       const result = await ai.models.generateContent({
         model: "gemini-2.5-flash", 
         contents: prompt,
@@ -153,6 +168,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
               insight: { type: Type.STRING },
               nextActivityId: { type: Type.STRING },
               aiAccuracy: { type: Type.INTEGER },
+              aiRecommendationRationale: { type: Type.STRING },
               detectedPatterns: { 
                 type: Type.ARRAY, 
                 items: { 
@@ -177,7 +193,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
                 }
               }
             },
-            required: ["insight", "nextActivityId", "detectedPatterns", "events"]
+            required: ["insight", "nextActivityId", "detectedPatterns", "events", "aiRecommendationRationale", "aiAccuracy"]
           }
         }
       });
@@ -186,6 +202,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
       const cleanJsonText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const aiData = JSON.parse(cleanJsonText);
 
+      // 3. UPDATE DB WITH DATA AND SET FLAG TO FALSE
       await strapi.documents('api::activity-session.activity-session').update({
         documentId,
         data: {
@@ -193,7 +210,9 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
           aiRecommendationId: aiData.nextActivityId,
           aiAccuracy: aiData.aiAccuracy,
           telemetryAnalysis: aiData.events, 
-          behavioralIndicators: aiData.detectedPatterns
+          behavioralIndicators: aiData.detectedPatterns,
+          aiRecommendationRationale: aiData.aiRecommendationRationale,
+          isGeneratingAI: false
         }
       });
 
@@ -203,6 +222,17 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
 
     } catch (error) {
       strapi.log.error(`--- AI PROCESSING ERROR --- ${error.message}`, error);
+      
+      // 4. PREVENT HANGING ON ERRORS BY FORCING FLAG TO FALSE
+      try {
+        await strapi.documents('api::activity-session.activity-session').update({
+          documentId,
+          data: { isGeneratingAI: false }
+        });
+      } catch (fallbackError) {
+        strapi.log.error(`Failed to release AI generation lock: ${fallbackError.message}`);
+      }
+
       return { success: false, error: error.message };
     }
   },
@@ -224,7 +254,6 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
     const startStr = startDate.split('T')[0];
     const endStr = endDate.split('T')[0];
 
-    // Pad by 1 day backwards and forwards to ensure no UTC rollovers hide data
     const startBoundary = new Date(`${startStr}T00:00:00.000Z`);
     startBoundary.setUTCDate(startBoundary.getUTCDate() - 1); 
 
@@ -241,10 +270,8 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
       filters,
       populate: { activity: { populate: ['categories'] }, student: true, therapist: true },
       sort: 'actualStartAt:asc',
-      status: 'published' // Ensure this is expected if testing immediately after session completion
+      status: 'published'
     });
-
-    console.log(`Fetched ${sessions.length} sessions (includes 1-day widened padding)`);
 
     // 2. STRICTLY MAP ONLY THE REQUESTED DATES
     const timelineMap = {};
@@ -254,7 +281,7 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
     while (cursor <= strictEnd) {
       const dayKey = cursor.toISOString().split('T')[0];
       timelineMap[dayKey] = { count: 0, totalScore: 0, totalAccuracy: 0, totalRounds: 0 };
-      cursor.setUTCDate(cursor.getUTCDate() + 1); // Pure UTC addition to prevent DST skips
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
 
     let totalScore = 0, validScoreCount = 0;
@@ -271,14 +298,10 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
      sessions.forEach(session => {
      const sessionDate = new Date(session.actualStartAt);
       
-      // 🚨 CRITICAL FIX: Convert the UTC database time into your exact local timezone
-      // 'en-CA' ensures the output is strictly formatted as 'YYYY-MM-DD'
-      // Change 'Asia/Manila' to your specific timezone if you are located elsewhere!
       const sessionDay = sessionDate.toLocaleDateString('en-CA', { 
           timeZone: 'Asia/Manila' 
       });
 
-      // If the over-fetched DB query grabbed out-of-bounds padding data, ignore it!
       if (!timelineMap[sessionDay]) return;
 
       if (session.student?.id) activeStudentsInPeriod.add(session.student.id);
@@ -291,7 +314,6 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
 
       if (session.activitySessionStatus === 'completed') completedCount++;
 
-      // Safely map to the strictly defined timeline
       timelineMap[sessionDay].count++;
       timelineMap[sessionDay].totalScore += session.score || 0;
       timelineMap[sessionDay].totalAccuracy += session.accuracy || 0;
@@ -320,16 +342,15 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
       }
     });
 
-    // 4. DYNAMIC AGGREGATION LOGIC (Daily vs Weekly vs Monthly)
+    // 4. DYNAMIC AGGREGATION LOGIC
     const dateKeys = Object.keys(timelineMap).sort();
     const rangeInDays = dateKeys.length;
     let finalTimeline = [];
 
     if (rangeInDays > 60) {
-      // Aggregate by Month if range is > 60 days
       const monthlyMap = {};
       dateKeys.forEach(date => {
-        const monthKey = date.substring(0, 7); // YYYY-MM
+        const monthKey = date.substring(0, 7); 
         if (!monthlyMap[monthKey]) monthlyMap[monthKey] = { count: 0, totalAcc: 0 };
         monthlyMap[monthKey].count += timelineMap[date].count;
         monthlyMap[monthKey].totalAcc += timelineMap[date].totalAccuracy;
@@ -337,10 +358,9 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
       finalTimeline = Object.keys(monthlyMap).map(m => ({
         date: m, 
         currentAccuracy: monthlyMap[m].count > 0 ? Math.round(monthlyMap[m].totalAcc / monthlyMap[m].count) : 0,
-        prevAccuracy: 0 // Previous logic would need to look back at previous month object
+        prevAccuracy: 0
       }));
     } else if (rangeInDays > 14) {
-      // Aggregate by Week if range is > 14 days
       let weekAcc = 0, weekCount = 0, weekStart = dateKeys[0];
       dateKeys.forEach((date, i) => {
         weekAcc += timelineMap[date].totalAccuracy;
@@ -354,11 +374,9 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
         }
       });
     } else {
-      // Default: Daily (with 0s)
       finalTimeline = dateKeys.map((date, index) => {
         const curr = timelineMap[date];
         const acc = curr.count > 0 ? Math.round(curr.totalAccuracy / curr.count) : 0;
-        // Previous day lookback for the comparison line
         const prevDate = dateKeys[index - 1];
         const prevAcc = prevDate && timelineMap[prevDate].count > 0 
           ? Math.round(timelineMap[prevDate].totalAccuracy / timelineMap[prevDate].count) 

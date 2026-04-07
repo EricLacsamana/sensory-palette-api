@@ -1,0 +1,70 @@
+{
+  "kind": "collectionType",
+  "collectionName": "appointments",
+  "info": {
+    "singularName": "appointment",
+    "pluralName": "appointments",
+    "displayName": "Appointment",
+    "description": "Scheduled therapy or medical appointments"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "startAt": {
+      "type": "datetime",
+      "required": false
+    },
+    "endAt": {
+      "type": "datetime",
+      "required": false
+    },
+    "actualStartAt": {
+      "type": "datetime"
+    },
+    "actualEndAt": {
+      "type": "datetime"
+    },
+    "appointmentStatus": {
+      "type": "enumeration",
+      "required": false,
+      "default": "pending",
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed",
+        "cancelled",
+        "no_show",
+        "reschedule"
+      ]
+    },
+    "service": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::service.service"
+    },
+    "student": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "therapist": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "internalNotes": {
+      "type": "text"
+    },
+    "rawTelemetry": {
+      "type": "json"
+    },
+    "activitySessions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::activity-session.activity-session",
+      "mappedBy": "appointment"
+    }
+  }
+}

@@ -27,7 +27,7 @@ export default async (policyContext, config, { strapi }) => {
         ...currentFilters,
         $and: [
           { role: { type: { $eq: 'student' } } },
-          { therapist: { id: { $eq: user.id } } }
+          // { therapist: { id: { $eq: user.id } } } --- IGNORE Enable this when needed ---
         ]
       }
     };

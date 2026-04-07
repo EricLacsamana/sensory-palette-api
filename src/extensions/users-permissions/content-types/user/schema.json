@@ -107,6 +107,19 @@
         "adhd",
         "autism"
       ]
+    },
+    "specialty": {
+      "type": "enumeration",
+      "enum": [
+        "OT",
+        "BCBA",
+        "RBT",
+        "SLP",
+        "PT",
+        "LCSW",
+        "Psychologist"
+      ],
+      "required": true
     }
   }
 }

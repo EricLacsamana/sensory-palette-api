@@ -71,7 +71,7 @@
     "score": {
       "type": "integer"
     },
-      "rounds": {
+    "rounds": {
       "type": "integer"
     },
     "accuracy": {
@@ -110,6 +110,31 @@
     },
     "aiAccuracy": {
       "type": "integer"
+    },
+    "aiRecommendationRationale": {
+      "type": "text"
+    },
+    "isGeneratingAI": {
+      "type": "boolean",
+      "default": false
+    },
+    "nextActivitySession": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::activity-session.activity-session",
+      "inversedBy": "previousActivitySession"
+    },
+    "previousActivitySession": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::activity-session.activity-session",
+      "mappedBy": "nextActivitySession"
+    },
+    "appointment": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::appointment.appointment",
+      "inversedBy": "activitySessions"
     }
   }
 }
