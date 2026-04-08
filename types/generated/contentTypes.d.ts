@@ -675,6 +675,7 @@ export interface ApiAppointmentAppointment extends Struct.CollectionTypeSchema {
         'completed',
         'cancelled',
         'no_show',
+        'partial',
         'reschedule',
       ]
     > &

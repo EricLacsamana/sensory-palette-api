@@ -1,5 +1,6 @@
 const { ApplicationError } = require('@strapi/utils').errors;
 const crypto = require('crypto');
+const appointment = require('../../../appointment/controllers/appointment');
 
 module.exports = {
   // 1. Generate the Friendly ID the moment it gets added to the calendar
@@ -91,7 +92,7 @@ module.exports = {
 
     const oldStatus = oldData.activitySessionStatus;
     const newStatus = result.activitySessionStatus;
-
+    console.log('Lifecycle Debug:', { oldStatus, newStatus, studentId, therapistId });
     // --------------------------------------------------------
     // SCENARIO 1: Session Started or Resumed
     // --------------------------------------------------------
@@ -269,6 +270,88 @@ module.exports = {
                 strapi.log.error(`[Auth Security] Failed to burn passcode: ${error.message}`);
             }
         }
+    }
+  // --------------------------------------------------------
+    // SCENARIO 8: Dynamic Appointment Status Rollup
+    // --------------------------------------------------------
+    // Trigger this whenever a session changes status
+    if (newStatus !== oldStatus) {
+      try {
+        // 1. Fetch the linked appointment for THIS specific session
+        const sessionWithAppt = await strapi.db.query('api::activity-session.activity-session').findOne({
+          where: { documentId: result.documentId }, 
+          populate: ['appointment'], 
+        });
+
+        // Extract the appointment documentId
+        const appointmentDocId = sessionWithAppt?.appointment?.documentId;
+
+        if (appointmentDocId) {
+          // 2. Fetch ALL session statuses for this specific appointment
+          const dbSessions = await strapi.db.query('api::activity-session.activity-session').findMany({
+            where: { appointment: { documentId: appointmentDocId } },
+            select: ['documentId', 'activitySessionStatus'] 
+          });
+
+          if (dbSessions.length > 0) {
+            
+            // 🛡️ THE FAILSAFE: Force the current session to use the new status
+            // to bypass any database transaction timing lag
+            const allSessions = dbSessions.map(session => {
+              if (session.documentId === result.documentId) {
+                return { ...session, activitySessionStatus: newStatus };
+              }
+              return session;
+            });
+
+            const total = allSessions.length;
+            
+            // Count specific statuses
+            const completedCount = allSessions.filter(s => s.activitySessionStatus === 'completed').length;
+            const cancelledCount = allSessions.filter(s => s.activitySessionStatus === 'cancelled').length;
+            
+            // Group active/waiting states together
+            const activeCount = allSessions.filter(s => 
+              ['pending', 'in_progress', 'paused', 'queued'].includes(s.activitySessionStatus)
+            ).length;
+
+            // 🐛 DEBUG LOG: Check your terminal/console to see exactly what the server sees
+            strapi.log.info(`[Appointment Debug] Appt: ${appointmentDocId} | Total: ${total} | Completed: ${completedCount} | Active: ${activeCount} | Cancelled: ${cancelledCount}`);
+
+            let targetAppointmentStatus = null;
+
+            // 3. Apply your routing logic
+            if (cancelledCount === total) {
+              // ALL sessions are cancelled
+              targetAppointmentStatus = 'cancelled';
+              
+            } else if (completedCount === total) {
+              // ALL sessions are completed
+              targetAppointmentStatus = 'completed';
+              
+            } else if (activeCount === 0 && completedCount > 0 && completedCount < total) {
+              // NO active sessions left, SOME are completed, SOME are cancelled/abandoned
+              targetAppointmentStatus = 'partial';
+              
+            } else if (activeCount > 0 && completedCount > 0) {
+              // STILL HAS pending/active sessions, but SOME are already completed
+              targetAppointmentStatus = 'in_progress';
+            }
+
+            // 4. Update the appointment if a condition was met
+            if (targetAppointmentStatus) {
+              await strapi.db.query('api::appointment.appointment').update({
+                where: { documentId: appointmentDocId }, 
+                data: { appointmentStatus: targetAppointmentStatus }
+              });
+              
+              strapi.log.info(`[Appointment System] Evaluated ${total} sessions. Auto-updated appointment ${appointmentDocId} to '${targetAppointmentStatus}'.`);
+            }
+          }
+        }
+      } catch (error) {
+        strapi.log.error(`[Appointment System] Failed to evaluate appointment rollup: ${error.message}`);
+      }
     }
   } // End of afterUpdate
 };
