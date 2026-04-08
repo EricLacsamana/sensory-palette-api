@@ -116,8 +116,8 @@ module.exports = createCoreService('api::activity-session.activity-session', ({ 
 
         - Hands-Free Flow: ${session.isHandsFree ? 'ENABLED (Instant transition)' : 'DISABLED (Manual start)'}.
         - Therapist Time Adjustment: ${session.extraTimeSeconds || 0} seconds added/removed.${gameStatsContext}
-        - Therapist Observations: ${session.therapistObservations || 'None'}
         - Activity Details: ${session.activity ? `${session.activity.name} [${session.activity.categories?.map((c) => c.name).join(', ') || 'Uncategorized'}]` : 'No activity data'}
+        - Clinical Observations: ${session.clinicalObservations || 'None'}
         
         Instructions:
         1. Parse the JSON telemetry data.
